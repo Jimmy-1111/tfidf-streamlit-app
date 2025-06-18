@@ -9,13 +9,14 @@ from zipfile import ZipFile
 
 janome_tokenizer = Tokenizer()
 
-# ✅ 僅保留語意上有價值的詞：名詞、動詞、形容詞
+# ✅ 強化版斷詞：僅保留名詞、動詞、形容詞；過濾助詞、助動詞、記號、空白
 def tokenize_japanese(text):
     tokens = []
     for token in janome_tokenizer.tokenize(text):
+        surface = token.surface.strip()
         part = token.part_of_speech.split(',')[0]
-        if part in ['名詞', '動詞', '形容詞']:
-            tokens.append(token.surface)
+        if part in ['名詞', '動詞', '形容詞'] and surface:
+            tokens.append(surface)
     return tokens
 
 def extract_date_from_filename(filename):
@@ -52,7 +53,7 @@ def build_tfidf_summary(tfidf_matrix, vectorizer):
     return summary_df
 
 # Streamlit app
-st.title("📊 TF-IDF 關鍵詞分析工具（排除語助詞與標點）")
+st.title("📊 TF-IDF 關鍵詞分析工具（僅保留名詞・動詞・形容詞）")
 uploaded_files = st.file_uploader("請上傳 Excel 檔案（可多選）", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
