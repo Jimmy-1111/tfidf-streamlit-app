@@ -9,23 +9,37 @@ from zipfile import ZipFile
 
 janome_tokenizer = Tokenizer()
 
-# ✅ 強化版斷詞：僅保留名詞、動詞、形容詞；過濾助詞、助動詞、記號、空白
+# ✅ 僅保留名詞、動詞、形容詞，排除無意義字元與章節符號
 def tokenize_japanese(text):
+    stopwords = {
+        "円", "億", "し", ",", "、", "(", ")", "％", "%", ".", "・"
+    }
     tokens = []
     for token in janome_tokenizer.tokenize(text):
         surface = token.surface.strip()
         part = token.part_of_speech.split(',')[0]
-        if part in ['名詞', '動詞', '形容詞'] and surface:
-            tokens.append(surface)
+
+        if part not in ['名詞', '動詞', '形容詞']:
+            continue
+
+        if (
+            not surface or
+            surface in stopwords or
+            re.fullmatch(r'[\d\.,％%％()（）]+', surface)  # 純數字或符號詞移除
+        ):
+            continue
+
+        tokens.append(surface)
     return tokens
 
-def extract_date_from_filename(filename):
-    match = re.match(r'^([0-9]{4}(Q[1-4])?)', filename)
-    return match.group(1) if match else "未知"
+# ✅ 移除句首章節符號，如 1.、（2）、3-1.
+def clean_number_prefix(text):
+    return re.sub(r'^\s*[（(]?[0-9０-９]+([\-－ー.．][0-9０-９]+)*[)）.]?\s*', '', text)
 
 def compute_tfidf(sentences):
+    cleaned = [clean_number_prefix(s) for s in sentences]
     vectorizer = TfidfVectorizer(tokenizer=tokenize_japanese)
-    tfidf_matrix = vectorizer.fit_transform(sentences)
+    tfidf_matrix = vectorizer.fit_transform(cleaned)
     return vectorizer, tfidf_matrix
 
 def extract_keywords(tfidf_matrix, vectorizer, top_n=5):
@@ -52,8 +66,12 @@ def build_tfidf_summary(tfidf_matrix, vectorizer):
     }).sort_values(by="TF-IDF（總和）", ascending=False)
     return summary_df
 
-# Streamlit app
-st.title("📊 TF-IDF 關鍵詞分析工具（僅保留名詞・動詞・形容詞）")
+def extract_date_from_filename(filename):
+    match = re.match(r'^([0-9]{4}(Q[1-4])?)', filename)
+    return match.group(1) if match else "未知"
+
+# ✅ Streamlit App
+st.title("📊 TF-IDF 關鍵詞分析工具（日文句子專用）")
 uploaded_files = st.file_uploader("請上傳 Excel 檔案（可多選）", type=["xlsx"], accept_multiple_files=True)
 
 if uploaded_files:
